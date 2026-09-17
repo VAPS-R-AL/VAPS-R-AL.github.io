@@ -113,7 +113,20 @@ in `index.html` appears in the paper, with one exception: the predictor's
 ("shortened") dropped it for page space. It is the measured range over the same
 thirteen trials, and the page has room for it.
 
-The supplementary video slot (`#video`) is a placeholder. When the cut is
-final, drop it into `static/videos/`, replace the `.vph` block with a
-`<video controls>`, and turn the hero's "Video — coming soon" button into a
-link.
+The supplementary film is `static/videos/vaps_supplementary.mp4` — the v9 cut
+(`raps_video/raps_animatic_v9.mp4`, 1280×720, 194.4 s, 15 beats, silent),
+remuxed with `-c copy -movflags +faststart` so it streams progressively
+instead of buffering all 12.7 MB first. It is NOT re-encoded; replace it the
+same way when a newer cut lands, and re-grab the poster:
+
+```bash
+ffmpeg -i ../raps_video/raps_animatic_vN.mp4 -c copy -movflags +faststart \
+       static/videos/vaps_supplementary.mp4
+ffmpeg -ss 3.5 -i static/videos/vaps_supplementary.mp4 -frames:v 1 -q:v 3 \
+       static/images/poster_supplementary.jpg
+```
+
+The cut carries a silent AAC track, so the player shows a volume control that
+does nothing; the caption says the film is silent. Note that `raps_video/`
+also holds a v10 (180.2 s, beat 10 rebuilt as one shot) — v9 is on the site by
+choice, so check which you mean before swapping.

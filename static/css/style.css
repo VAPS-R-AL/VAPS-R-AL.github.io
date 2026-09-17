@@ -179,6 +179,20 @@ h1.title .c-protect { color: var(--protect); }
 .vph .s { font-size: 13.5px; }
 .vph .dots { display: inline-flex; gap: 6px; margin-left: 8px; vertical-align: middle; }
 
+/* ------------------------------------------------------ supplementary film */
+
+.vfilm { max-width: 900px; margin: 0 auto; }
+.vfilm video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  background: #0b0d11;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+}
+.vfilm figcaption { max-width: 760px; }
+
 /* ---------------------------------------------------------------- layout */
 
 section { padding: 60px 0; border-bottom: 1px solid var(--rule-soft); }

@@ -49,7 +49,10 @@
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/></svg>
         Paper (PDF)
       </a>
-      <span class="btn btn--disabled">Video &mdash; coming soon</span>
+      <a class="btn btn--ghost" href="#video">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4l14 8-14 8z"/></svg>
+        Video (3:14)
+      </a>
       <a class="btn btn--ghost" href="#results">Results</a>
       <span class="btn btn--disabled">Code &mdash; on publication</span>
     </div>
@@ -89,16 +92,15 @@
 <section id="video">
   <div class="wrap wrap--wide">
     <h2>Supplementary video</h2>
-    <div class="vph">
-      <div class="inner">
-        <div class="play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4l14 8-14 8z"/></svg></div>
-        <div class="h">Video coming soon</div>
-        <div class="s">
-          The full cut, with narration of the method &mdash; the clips on this page are excerpts
-          <span class="dots"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span><span class="dot dot--protect"></span></span>
-        </div>
-      </div>
-    </div>
+    <figure class="vfilm">
+      <video src="static/videos/vaps_supplementary.mp4" poster="static/images/poster_supplementary.jpg"
+             controls preload="metadata" playsinline></video>
+      <figcaption>
+        The full cut &mdash; the problem, the three specialists, what the predictors are trained on, the selector,
+        and the hardware results, closing on every real-robot number in the paper.
+        3&nbsp;min 14&nbsp;s, <b>silent</b>: everything is said in on-screen text.
+      </figcaption>
+    </figure>
   </div>
 </section>
 
