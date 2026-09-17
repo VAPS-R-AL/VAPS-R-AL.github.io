@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VAPS: Continue, Abort, or Fall</title>
+<meta name="description" content="Viability-Aware Policy Selection (VAPS): a policy-conditioned, receding-horizon safety framework for dynamic humanoid maneuvers that decides, at every control step, whether to continue the maneuver, abort to a controlled landing, or fall protectively.">
+<meta name="robots" content="index, follow">
+<meta property="og:title" content="Continue, Abort, or Fall: Viability-Aware Policy Selection (VAPS) for Safe Humanoid Acrobatics">
+<meta property="og:description" content="A policy-conditioned, receding-horizon safety framework that keeps the most task-ambitious behavior still viable: continue, abort to a feet-first landing, or fall protectively. Validated in simulation on a Unitree G1 and on hardware side flips with a LimX Oli.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="static/css/style.css">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap wrap--wide">
+    <span class="brand">VAPS</span>
+    <nav>
+      <a href="#video">Video</a>
+      <a href="#abstract">Abstract</a>
+      <a href="#simulation">Simulation</a>
+      <a href="#method">Method</a>
+      <a href="#counterfactual">Counterfactuals</a>
+      <a href="#results">Results</a>
+      <a href="#hierarchy">vs. monoliths</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#untrusted">New policies</a>
+      <a href="#bibtex">BibTeX</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap wrap--wide">
+    <p class="venue">Anonymous submission &middot; under review</p>
+    <h1 class="title">
+      <span class="c-nom">Continue</span>, <span class="c-abort">Abort</span>, or <span class="c-protect">Fall</span>
+    </h1>
+    <p class="subtitle">
+      <b>Viability-Aware Policy Selection (VAPS)</b> for Safe Humanoid Acrobatics
+    </p>
+    <p class="authors">
+      Anonymous Authors
+      <span class="note">Author and institution information is withheld for double-blind review.</span>
+    </p>
+    <div class="links">
+      <a class="btn" href="static/paper/vaps_paper.pdf">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 1.5h5.5L13 5v9.5H4z"/><path d="M9.5 1.5V5H13"/></svg>
+        Paper (PDF)
+      </a>
+      <span class="btn btn--disabled">Video &mdash; coming soon</span>
+      <a class="btn btn--ghost" href="#results">Results</a>
+      <span class="btn btn--disabled">Code &mdash; on publication</span>
+    </div>
+  </div>
+</header>
+
+<div class="triptych">
+  <div class="wrap wrap--wide">
+    <div class="trip">
+      <figure class="t-nom">
+        <video src="static/videos/real_nominal.mp4" poster="static/images/poster_real_nominal.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="tag"><span class="word">Continue</span><span class="pol">nominal policy</span></div>
+        <p class="desc">Undisturbed, the nominal policy completes the side flip on the LimX Oli and lands on its feet.</p>
+      </figure>
+      <figure class="t-abort">
+        <video src="static/videos/real_abort.mp4" poster="static/images/poster_real_abort.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="tag"><span class="word">Abort</span><span class="pol">abort policy</span></div>
+        <p class="desc">Handed the maneuver mid-flight, the abort policy gives up the flip and lands feet first.</p>
+      </figure>
+      <figure class="t-protect">
+        <video src="static/videos/real_protfall.mp4" poster="static/images/poster_real_protfall.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="tag"><span class="word">Fall</span><span class="pol">protective-fall policy</span></div>
+        <p class="desc">Handed the same maneuver, the protective-fall policy performs a controlled fall protecting head and hands.</p>
+      </figure>
+    </div>
+    <p class="tripnote">
+      The same side flip on the physical LimX Oli with three possible endings. In the abort and protective-fall
+      clips the switch is triggered by an operator mid-motion, and the segment around the switch plays at
+      &frac14; speed.
+    </p>
+  </div>
+</div>
+
+<section id="video">
+  <div class="wrap wrap--wide">
+    <h2>Supplementary video</h2>
+    <div class="vph">
+      <div class="inner">
+        <div class="play"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4l14 8-14 8z"/></svg></div>
+        <div class="h">Video coming soon</div>
+        <div class="s">
+          The full cut, with narration of the method &mdash; the clips on this page are excerpts
+          <span class="dots"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span><span class="dot dot--protect"></span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="abstract">
+  <div class="wrap">
+    <h2>Abstract</h2>
+    <p class="lede">
+      Dynamic humanoid motions such as flips risk hardware damage, due to suboptimal policies, disturbances or
+      sim-to-real gaps. A motion-tracking policy offers no way out once the maneuver leaves its reference, and a
+      backup policy needs to take over to protect the hardware for a least-damage landing. Which backup to use
+      matters as much as when to switch.
+    </p>
+    <p>
+      We present <b>Viability-Aware Policy Selection (VAPS)</b>, which treats safety as a policy-conditioned,
+      receding-horizon decision. Besides a protective-fall policy, we also train an abort policy which can abort
+      the motion at any time, landing on its feet. At every control step, learned predictors estimate whether the
+      nominal tracking policy and the abort policy remain viable over a short horizon, and a least-sacrificial
+      hierarchy keeps the most task-ambitious behavior that remains viable.
+    </p>
+    <p>
+      In simulation with randomized disturbances, VAPS sharply reduces head contact and hand contact, which are
+      the dominant sources of hardware damage; on the LimX Oli, we validate the viability predictors and the
+      full VAPS controller for side-flip motions, with the whole stack running on the robot's own CPU. VAPS
+      Pareto-dominates the strongest single-network alternatives we could train, including an end-to-end
+      safe-tracking policy and students distilled from VAPS's own oracle-routed decisions, on the
+      task-success/head-impact frontier. We also show that VAPS is a powerful framework to supervise
+      undertrained policies and protect the hardware.
+    </p>
+  </div>
+</section>
+
+<section id="contributions" class="tint">
+  <div class="wrap wrap--wide">
+    <h2>Contributions</h2>
+    <div class="contrib">
+      <div class="item">
+        <span class="k">1</span>
+        <div>
+          <h4>Least-sacrificial safety</h4>
+          <p>VAPS formulates intervention during a dynamic maneuver as a selection over an ordered hierarchy of
+          behaviors &mdash; continue, abort, and protective fall &mdash; committing to the smallest sacrifice of
+          task ambition that remains viable.</p>
+        </div>
+      </div>
+      <div class="item">
+        <span class="k">2</span>
+        <div>
+          <h4>Policy-conditioned, receding-horizon viability</h4>
+          <p>We learn one viability predictor per backup from counterfactual rollouts and evaluate it
+          continuously from proprioceptive history.</p>
+        </div>
+      </div>
+      <div class="item">
+        <span class="k">3</span>
+        <div>
+          <h4>Analysis of single-policy alternatives</h4>
+          <p>We investigate monolithic alternatives, including end-to-end RL policies and students distilled
+          from VAPS with DAgger &mdash; with and without memory &mdash; and show that VAPS dominates all of
+          them.</p>
+        </div>
+      </div>
+      <div class="item">
+        <span class="k">4</span>
+        <div>
+          <h4>Hardware validation</h4>
+          <p>We deploy and validate VAPS on the LimX Oli humanoid, demonstrating successful cross-robot and
+          sim-to-real transfer.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="subhead" style="margin-top:36px">In simulation &mdash; Unitree G1, 6,144 disturbed episodes</p>
+    <div class="stats">
+      <div class="stat">
+        <span class="num">27.7% <small>&rarr;</small> 1.6%</span>
+        <span class="cap">head-contact rate, nominal policy alone vs. the full VAPS hierarchy.</span>
+      </div>
+      <div class="stat">
+        <span class="num">37.9% <small>&rarr;</small> 26.1%</span>
+        <span class="cap">fall rate over the same episodes &mdash; the robot reaches the ground far less often.</span>
+      </div>
+      <div class="stat">
+        <span class="num">0.416 s</span>
+        <span class="cap">mean warning lead &mdash; about 60% earlier than final-outcome (SafeFall-style) predictors at the same false-alarm rate.</span>
+      </div>
+      <div class="stat">
+        <span class="num">&minus;2.5 <small>pts</small></span>
+        <span class="cap">the cost of supervision: 59.6% motion success against 62.1% unsupervised.</span>
+      </div>
+    </div>
+
+    <p class="subhead" style="margin-top:30px">On hardware &mdash; LimX Oli side flips</p>
+    <div class="stats">
+      <div class="stat">
+        <span class="num">13 / 13</span>
+        <span class="cap">trials classified correctly &mdash; eight successful executions, five failures, no false alarm.</span>
+      </div>
+      <div class="stat">
+        <span class="num">0.544 s</span>
+        <span class="cap">mean lead on the failures, each flagged before the corresponding simulated termination (range 0.12&ndash;0.80 s).</span>
+      </div>
+      <div class="stat">
+        <span class="num">15 / 18</span>
+        <span class="cap">closed-loop trials in which the selected specialist met its objective &mdash; 83.3%, disturbances included.</span>
+      </div>
+      <div class="stat">
+        <span class="num">0.29 ms</span>
+        <span class="cap">policy + both predictors at the handoff step on one CPU core of the robot &mdash; 1.45% of the control period.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="simulation">
+  <div class="wrap wrap--wide">
+    <h2>In simulation</h2>
+    <ul class="blist">
+        <li><b>Unitree G1</b> &mdash; simulation only; the robot behind Tables I&ndash;III.</li>
+        <li><b>LimX Oli</b> &mdash; modelled in simulation as well, and the robot the hardware trials run on.</li>
+        <li>All clips are side flips at 50&nbsp;Hz, at real time unless a badge on the frame says otherwise.</li>
+      </ul>
+
+    <p class="subhead" style="margin-top:38px">The three candidate behaviors, from the same disturbed state</p>
+    <div class="vgrid">
+      <figure class="vcard">
+        <span class="rb">Unitree G1 &middot; simulation</span>
+        <video src="static/videos/sim_nominal.mp4" poster="static/images/poster_sim_nominal.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>Nominal</div>
+        <p class="desc">Continue the maneuver. Undisturbed, the nominal policy completes the side flip and lands on its feet.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">Unitree G1 &middot; simulation</span>
+        <video src="static/videos/sim_abort.mp4" poster="static/images/poster_sim_abort.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--abort"></span>Abort</div>
+        <p class="desc">Give up the flip, keep the feet. The red ghost is the counterfactual &mdash; the same state replayed under the nominal policy, which ends up on the floor.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">Unitree G1 &middot; simulation</span>
+        <video src="static/videos/sim_protective.mp4" poster="static/images/poster_sim_protective.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--protect"></span>Protective fall</div>
+        <p class="desc">Once upright recovery is gone, stop defending the task and shape the impact away from the head and hands.</p>
+      </figure>
+    </div>
+
+    <p class="subhead" style="margin-top:46px">The selector running, one robot each</p>
+    <div class="vgrid vgrid--2">
+      <figure class="vcard">
+        <span class="rb">Unitree G1 &middot; simulation</span>
+        <video src="static/videos/g1_sim_vaps.mp4" poster="static/images/poster_g1_sim_vaps.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span>&nbsp;Nominal &rarr; abort</div>
+        <p class="desc">A bar per candidate against its own threshold tick. The nominal's viability collapses, the abort's
+        holds, and the selector hands over; the red ghost is what the nominal would have done instead.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; simulation</span>
+        <video src="static/videos/oli_sim_vaps.mp4" poster="static/images/poster_oli_sim_vaps.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span>&nbsp;Nominal &rarr; abort</div>
+        <p class="desc">The same rule, the same read-out, on the Oli model &mdash; the robot the hardware trials use.
+        The green figure is the reference motion the nominal policy is tracking.</p>
+      </figure>
+    </div>
+    <p class="tnote" style="margin-top:14px">
+      Both renders run the paper's own components, so what the bars show is what the deployed selector reads.
+    </p>
+
+    <p class="subhead" style="margin-top:46px">One state, each arm of the comparison in turn</p>
+    <div class="vgrid vgrid--wide">
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; simulation</span>
+        <video src="static/videos/oli_sim_specialists.mp4" poster="static/images/poster_oli_sim_specialists.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span><span class="dot dot--protect"></span>&nbsp;Nominal only &rarr; always abort &rarr; always protective fall</div>
+        <p class="desc">
+          The three arms of the closed-loop table, back to back from one disturbed state, with a live peak-head-force
+          read-out. The table's numbers are the G1's; this is the same comparison on the Oli.
+        </p>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap wrap--wide">
+    <h2>Method</h2>
+    <figure>
+      <img src="static/images/overview.png"
+           alt="Three-panel overview of VAPS: (a) policy-conditioned futures branching from one observed state, continuing the nominal policy versus switching to abort; (b) a separate finite-horizon viability predictor for the nominal and abort policies, each reading a short history; (c) the selection rule from nominal to abort to protective fall.">
+      <figcaption>
+        <b>Overview of VAPS.</b> (a) Imaginary policy-conditioned futures from counterfactual training.
+        (b) Policy-conditioned receding-horizon viabilities. (c) VAPS: the least-sacrificial rule of policy
+        selection.
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="wrap" style="margin-top:48px">
+    <h3>Why a single switch is too coarse</h3>
+    <ul class="blist">
+        <li>Acrobatics are learned as reference-tracking policies, and training ends the episode the moment the robot leaves the reference &mdash; so nothing is learned about what follows.</li>
+        <li>Most safety mechanisms then offer one binary choice: continue, or trigger a single backup.</li>
+        <li>A flip lasts one to two seconds. There is no time left to correct or recover, only to abort safely.</li>
+        <li>Depending on the severity, the robot may still land on its feet rather than fall &mdash; and at these speeds even a learned safe fall can do serious damage.</li>
+        <li>The gap is the intermediate regime: the maneuver is already lost, a controlled landing is not.</li>
+      </ul>
+
+    <h3>Three specialists, each trained where it is entered</h3>
+    <ul class="blist">
+        <li><span class="chip chip--nom">Nominal</span> whichever tracking policy is deployed. Never trained on what follows a deviation, so it cannot serve as its own backup.</li>
+        <li><span class="chip chip--abort">Abort</span> seeks an upright base with only the feet in contact, trained from switch states snapshotted under disturbed nominal rollouts.</li>
+        <li><span class="chip chip--protect">Protective fall</span> shields head and hands once a fall is unavoidable; its success means mitigated harm, not task completion.</li>
+      </ul>
+
+    <h3>Policy-conditioned, receding-horizon viability</h3>
+    <ul class="blist">
+        <li>One predictor per candidate, re-estimated at every control step: does this policy fail within the next <i>H</i> steps?</li>
+        <li>Failure is a <i>physical fall</i> &mdash; non-foot terrain contact &mdash; not the tracking-error termination, which fires on deviations the robot often survives. The same predicate for both policies puts the two viabilities on one scale.</li>
+        <li>Each predictor reads a trailing window of its own policy's observations; the instantaneous state cannot tell a recoverable configuration from one already committed to failure.</li>
+        <li>Rollouts start from the states where that policy is actually entered &mdash; matching them moved the switching decision more than architecture, history length and sensing combined.</li>
+        <li>Positives are down-weighted by their time to failure (&gamma;), ranking imminent failures above distant ones without changing the class balance.</li>
+      </ul>
+    
+
+    <h3>The least-sacrificial rule</h3>
+    <ul class="blist">
+        <li>The ladder: the nominal completes the maneuver, the abort gives it up but keeps the robot upright, the protective fall gives up staying upright and only limits the damage.</li>
+        <li>Each step down costs more of the task and exposes the hardware to more risk, so the robot descends only as far as predicted viability forces it.</li>
+        <li>The executed policy is the least sacrificial one still predicted viable:</li>
+      </ul>
+    <div class="rule">
+      <table>
+        <tr class="r-nom">
+          <td>continue &middot; &pi;<sub>nom</sub></td>
+          <td><span class="cond">while the nominal policy is predicted viable,</span>
+              <span class="m">V&#770;</span><sub>nom</sub> &gt; &tau;<sub>nom</sub></td>
+        </tr>
+        <tr class="r-abort">
+          <td>abort &middot; &pi;<sub>abort</sub></td>
+          <td><span class="cond">once the nominal alarms and the abort is still predicted viable,</span>
+              <span class="m">V&#770;</span><sub>nom</sub> &le; &tau;<sub>nom</sub>
+              &nbsp;&and;&nbsp;
+              <span class="m">V&#770;</span><sub>abort</sub> &gt; &tau;<sub>abort</sub></td>
+        </tr>
+        <tr class="r-protect">
+          <td>fall &middot; &pi;<sub>protect</sub></td>
+          <td><span class="cond">otherwise.</span></td>
+        </tr>
+      </table>
+    </div>
+    <ul class="blist">
+        <li>Both thresholds are set empirically: &tau;<sub>nom</sub> trades false alarms against lead time, and is fixed at a false-alarm rate of at most 1% on held-out stable episodes (&tau;<sub>nom</sub>&nbsp;=&nbsp;0.2, &tau;<sub>abort</sub>&nbsp;=&nbsp;0.87).</li>
+        <li>The rule reacts to predicted viability, not to the cause of its loss.</li>
+        <li>One hierarchy therefore covers a mature policy under disturbance, an untested policy on hardware, and a stop demanded from outside the robot by an operator or a workspace monitor.</li>
+      </ul>
+  </div>
+</section>
+
+<section id="counterfactual" class="tint">
+  <div class="wrap wrap--wide">
+    <h2>One real state, three futures</h2>
+    <ul class="blist">
+        <li>Counterfactual rollouts separate <i>the maneuver has failed</i> from <i>recovery is no longer possible</i> &mdash; and they are what the predictors are trained on.</li>
+        <li>Save a state, replay it under every candidate: the outcomes differ only in which policy ran next.</li>
+        <li>Here with a real trial &mdash; on the LimX Oli the nominal predictor called the switch mid-flight.</li>
+        <li>The robot's recorded state at that instant was re-run in simulation under each candidate.</li>
+      </ul>
+
+    <div class="vgrid vgrid--wide" style="margin-top:32px">
+      <figure class="vcard vcard--lead">
+        <span class="rb">LimX Oli &middot; hardware</span>
+        <video src="static/videos/cf_real.mp4" poster="static/images/poster_cf_real.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--abort"></span>The trial that happened</div>
+        <p class="desc">The predictor calls the switch at 5.05&nbsp;s and the abort policy takes the robot back to a
+        stance. The clock is the trial's own.</p>
+      </figure>
+    </div>
+
+    <p class="subhead" style="margin-top:10px">The same state, replayed under each candidate</p>
+    <div class="vgrid vgrid--cf">
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; simulation</span>
+        <video src="static/videos/cf_nominal.mp4" poster="static/images/poster_cf_nominal.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>No switch</div>
+        <p class="desc">Carrying on with the nominal policy from the same state puts the robot on the ground: the
+        maneuver was no longer recoverable.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; simulation</span>
+        <video src="static/videos/cf_abort.mp4" poster="static/images/poster_cf_abort.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--abort"></span>Abort</div>
+        <p class="desc">The abort was still viable, and it is what the selector chose &mdash; the outcome the trial
+        above actually got.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; simulation</span>
+        <video src="static/videos/cf_protfall.mp4" poster="static/images/poster_cf_protfall.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--protect"></span>Protective fall</div>
+        <p class="desc">The terminal option: the robot goes down, but with the impact shaped away from the head and
+        hands. Available here, and the right choice a little later.</p>
+      </figure>
+    </div>
+    <p class="tnote" style="margin-top:16px">
+      All four are frame-locked to the same clock and play at real time. The green figure in the replays is the
+      reference motion; the hardware panel ends 3.4&nbsp;s after the switch, where someone walks into the laboratory
+      shot.
+    </p>
+  </div>
+</section>
+
+<section id="results" class="tint">
+  <div class="wrap wrap--wide">
+    <h2>Results in simulation</h2>
+
+    <div class="two">
+      <div>
+        <h3>The backups are preferable over different bands of severity</h3>
+        <ul class="blist">
+        <li>At the training scale all three succeed without touching the ground.</li>
+        <li>At the intermediate scale the nominal starts to lose the maneuver, while the abort still returns nine in ten to a stance and the protective fall keeps the head clear on essentially every state it is handed.</li>
+        <li>At the strongest scale the nominal completes one episode in seven and puts its head down in five of eight; the abort still recovers three in five.</li>
+        <li>The maneuver becomes unrecoverable long before safe recovery does.</li>
+      </ul>
+      </div>
+      <div>
+        <p class="tcap"><span class="tn">Table I</span>Specialist performance across DR scales</p>
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Policy</th><th>DR</th><th>Success &uarr;</th><th>Head &darr;</th><th>Hand &darr;</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><span class="dot dot--nominal"></span>&nbsp; Nominal</td><td>1</td><td>100.0<span class="pm"> ±0.0</span></td><td>0.0<span class="pm"> ±0.0</span></td><td>0.0<span class="pm"> ±0.0</span></td></tr>
+              <tr><td></td><td>2</td><td>86.2<span class="pm"> ±1.6</span></td><td>8.1<span class="pm"> ±1.1</span></td><td>13.6<span class="pm"> ±1.6</span></td></tr>
+              <tr><td></td><td>4</td><td>15.0<span class="pm"> ±2.2</span></td><td>62.0<span class="pm"> ±2.9</span></td><td>82.3<span class="pm"> ±2.0</span></td></tr>
+              <tr><td><span class="dot dot--abort"></span>&nbsp; Abort</td><td>1</td><td>100.0<span class="pm"> ±0.0</span></td><td>0.0<span class="pm"> ±0.0</span></td><td>5.0<span class="pm"> ±0.0</span></td></tr>
+              <tr><td></td><td>2</td><td>89.0<span class="pm"> ±8.2</span></td><td>9.0<span class="pm"> ±6.5</span></td><td>11.0<span class="pm"> ±7.4</span></td></tr>
+              <tr><td></td><td>4</td><td>62.0<span class="pm"> ±13.0</span></td><td>17.0<span class="pm"> ±8.4</span></td><td>26.0<span class="pm"> ±6.5</span></td></tr>
+              <tr><td><span class="dot dot--protect"></span>&nbsp; ProtFall</td><td>1</td><td>100.0<span class="pm"> ±0.0</span></td><td>0.0<span class="pm"> ±0.0</span></td><td>4.0<span class="pm"> ±2.2</span></td></tr>
+              <tr><td></td><td>2</td><td>98.0<span class="pm"> ±2.7</span></td><td>2.0<span class="pm"> ±2.7</span></td><td>9.0<span class="pm"> ±8.9</span></td></tr>
+              <tr><td></td><td>4</td><td>96.0<span class="pm"> ±4.2</span></td><td>4.0<span class="pm"> ±4.2</span></td><td>22.0<span class="pm"> ±12.5</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tnote">All values in %. Success for ProtFall is mitigation of harm (no head contact before timeout), not task completion.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:56px">Predicting viability, not the final outcome</h3>
+    <div class="two two--wide-r">
+      <div>
+        <ul class="blist">
+        <li>Baselines are SafeFall-style final-outcome predictors, retrained on our rollouts with the same splits and the same &le;1% false-alarm rule.</li>
+        <li>At the same episode-level false-alarm rate, VAPS detects more falls and warns about <b>60% earlier</b>.</li>
+        <li>Pushing the baseline's label window out buys lead time only to <i>t</i><sub>2</sub>&nbsp;=&nbsp;500&nbsp;ms; past that, lead time and detection both regress.</li>
+        <li>A final-outcome label can only fire once the outcome is settled &mdash; often past the point where an upright landing is still reachable.</li>
+        <li>In the sweeps the horizon is decisive (median lead more than doubles from <i>H</i>&nbsp;=&nbsp;10 to 50); the encoder barely matters.</li>
+      </ul>
+        
+      </div>
+      <div>
+        <p class="tcap"><span class="tn">Table II</span>Predictor comparison against final-outcome baselines</p>
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Method</th><th>Episode acc. &uarr;</th><th>Detection &uarr;</th><th>FAR &darr;</th><th>Lead time &uarr;</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>SafeFall (<i>t</i><sub>2</sub> = 100 ms)</td><td>95.5<span class="pm"> ±2.1</span></td><td>85.8<span class="pm"> ±7.0</span></td><td>0.4<span class="pm"> ±0.8</span></td><td>0.205 s<span class="pm"> ±0.012</span></td></tr>
+              <tr><td>SafeFall (<i>t</i><sub>2</sub> = 200 ms)</td><td>95.0<span class="pm"> ±1.5</span></td><td>83.3<span class="pm"> ±5.1</span></td><td><b>0.0</b><span class="pm"> ±0.0</span></td><td>0.259 s<span class="pm"> ±0.014</span></td></tr>
+              <tr><td>SafeFall (<i>t</i><sub>2</sub> = 500 ms)</td><td>95.0<span class="pm"> ±0.0</span></td><td>84.2<span class="pm"> ±1.9</span></td><td>0.4<span class="pm"> ±0.8</span></td><td>0.316 s<span class="pm"> ±0.063</span></td></tr>
+              <tr><td>SafeFall (<i>t</i><sub>2</sub> = 1000 ms)</td><td>93.5<span class="pm"> ±1.6</span></td><td>79.2<span class="pm"> ±5.1</span></td><td>0.4<span class="pm"> ±0.8</span></td><td>0.281 s<span class="pm"> ±0.046</span></td></tr>
+              <tr class="ours"><td>VAPS (&lambda; = 0.9, <i>H</i> = 50)</td><td><b>97.5</b><span class="pm"> ±1.5</span></td><td><b>91.7</b><span class="pm"> ±5.1</span></td><td><b>0.0</b><span class="pm"> ±0.0</span></td><td><b>0.416 s</b><span class="pm"> ±0.042</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tnote">Held-out rollouts at the frozen validation threshold; mean ± std over five seeds; FAR is episode-level. <i>t</i><sub>2</sub> is the baseline's labelling window: larger values ask it to fire earlier.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:56px">Closed-loop: routing between the backups keeps the best of both</h3>
+    <ul class="blist blist--tight">
+        <li>6,144 deployment episodes, 2,048 at each of three DR scales.</li>
+        <li><i>Success</i> is motion success, gated on a rotation witness, so a policy that declines the maneuver cannot score as a safe one.</li>
+        <li>Contact columns are the fraction of all episodes; the right-hand block is conditioned on the episodes that fell.</li>
+      </ul>
+    <p class="tcap" style="margin-top:22px"><span class="tn">Table III</span>Closed-loop performance under randomized disturbances</p>
+    <div class="tscroll">
+      <table>
+        <thead>
+          <tr class="group">
+            <th></th>
+            <th colspan="5">All episodes (%)</th>
+            <th colspan="2">Fallen episodes only &mdash; median [mean]</th>
+          </tr>
+          <tr>
+            <th>Method</th>
+            <th>Success &uarr;</th><th>Head &darr;</th><th>Hand &darr;</th><th>Other &darr;</th><th>Fall &darr;</th>
+            <th>Pk. head (N)</th><th>Pk. non-foot (N)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="ref">
+            <td>Nominal only</td>
+            <td><b>62.1</b><span class="pm"> ±0.2</span></td>
+            <td>27.7<span class="pm"> ±0.2</span></td>
+            <td>36.6<span class="pm"> ±0.2</span></td>
+            <td>36.3<span class="pm"> ±0.1</span></td>
+            <td>37.9<span class="pm"> ±0.2</span></td>
+            <td>540.2 <span class="mean">[954.8]</span></td>
+            <td>2124.6 <span class="mean">[2608.6]</span></td>
+          </tr>
+
+          <tr class="block"><td colspan="8">VAPS &mdash; shared alarm rule, &tau;<sub>nom</sub> = 0.20</td></tr>
+          <tr>
+            <td>VAPS (Nominal&ndash;Abort)</td>
+            <td>59.6<span class="pm"> ±0.4</span></td>
+            <td>5.0<span class="pm"> ±0.4</span></td>
+            <td><b>7.4</b><span class="pm"> ±0.5</span></td>
+            <td><b>5.5</b><span class="pm"> ±0.3</span></td>
+            <td><b>7.4</b><span class="pm"> ±0.5</span></td>
+            <td>833.5 <span class="mean">[1076.0]</span></td>
+            <td>2219.5 <span class="mean">[2110.4]</span></td>
+          </tr>
+          <tr>
+            <td>VAPS (Nominal&ndash;ProtFall)</td>
+            <td>59.6<span class="pm"> ±0.4</span></td>
+            <td>2.0<span class="pm"> ±0.1</span></td>
+            <td>11.8<span class="pm"> ±0.6</span></td>
+            <td>39.9<span class="pm"> ±0.5</span></td>
+            <td>40.4<span class="pm"> ±0.4</span></td>
+            <td>0.0 <span class="mean">[21.8]</span></td>
+            <td>1871.8 <span class="mean">[2058.6]</span></td>
+          </tr>
+          <tr class="ours">
+            <td>VAPS (one-shot)</td>
+            <td>59.6<span class="pm"> ±0.4</span></td>
+            <td>2.2<span class="pm"> ±0.2</span></td>
+            <td>9.3<span class="pm"> ±0.4</span></td>
+            <td>25.6<span class="pm"> ±1.7</span></td>
+            <td>26.2<span class="pm"> ±1.7</span></td>
+            <td>0.0 <span class="mean">[62.2]</span></td>
+            <td>1855.3 <span class="mean">[2073.4]</span></td>
+          </tr>
+          <tr class="ours">
+            <td>VAPS (full hierarchy)</td>
+            <td>59.6<span class="pm"> ±0.4</span></td>
+            <td><b>1.6</b><span class="pm"> ±0.2</span></td>
+            <td>8.8<span class="pm"> ±0.5</span></td>
+            <td>25.6<span class="pm"> ±1.8</span></td>
+            <td>26.1<span class="pm"> ±1.7</span></td>
+            <td>0.0 <span class="mean">[28.8]</span></td>
+            <td><b>1835.7</b> <span class="mean">[2032.3]</span></td>
+          </tr>
+
+          <tr class="block"><td colspan="8">Monolithic, memoryless &mdash; one network, no switching, one frame in</td></tr>
+          <tr>
+            <td>End-to-end RL (&lambda; = 10)</td>
+            <td>61.9<span class="pm"> ±0.9</span></td>
+            <td>24.0<span class="pm"> ±1.6</span></td>
+            <td>36.1<span class="pm"> ±1.3</span></td>
+            <td>36.7<span class="pm"> ±0.8</span></td>
+            <td>37.9<span class="pm"> ±1.0</span></td>
+            <td>388.2 <span class="mean">[846.7]</span></td>
+            <td>2051.5 <span class="mean">[2372.4]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled (base)</td>
+            <td>57.4<span class="pm"> ±0.8</span></td>
+            <td>23.1<span class="pm"> ±1.1</span></td>
+            <td>33.6<span class="pm"> ±1.1</span></td>
+            <td>30.4<span class="pm"> ±0.8</span></td>
+            <td>34.0<span class="pm"> ±1.1</span></td>
+            <td>756.3 <span class="mean">[1100.8]</span></td>
+            <td>2453.8 <span class="mean">[2608.8]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled (+ protect)</td>
+            <td>58.0<span class="pm"> ±0.6</span></td>
+            <td>17.9<span class="pm"> ±1.4</span></td>
+            <td>36.7<span class="pm"> ±0.5</span></td>
+            <td>36.1<span class="pm"> ±0.5</span></td>
+            <td>38.4<span class="pm"> ±0.6</span></td>
+            <td>18.2 <span class="mean">[712.8]</span></td>
+            <td>2329.8 <span class="mean">[2552.1]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled (+ protect, DAgger)</td>
+            <td>56.3<span class="pm"> ±0.7</span></td>
+            <td>10.1<span class="pm"> ±1.3</span></td>
+            <td>39.7<span class="pm"> ±1.0</span></td>
+            <td>40.5<span class="pm"> ±0.7</span></td>
+            <td>42.3<span class="pm"> ±1.0</span></td>
+            <td>0.0 <span class="mean">[326.6]</span></td>
+            <td>2132.8 <span class="mean">[2456.4]</span></td>
+          </tr>
+
+          <tr class="block"><td colspan="8">Monolithic with memory &mdash; one network, no switching, history in the input or a carried state</td></tr>
+          <tr>
+            <td>Distilled frame-stack 5 (base)</td>
+            <td>55.5<span class="pm"> ±3.7</span></td>
+            <td>25.4<span class="pm"> ±0.3</span></td>
+            <td>39.2<span class="pm"> ±3.3</span></td>
+            <td>35.0<span class="pm"> ±1.2</span></td>
+            <td>39.7<span class="pm"> ±3.3</span></td>
+            <td>675.0 <span class="mean">[1039.2]</span></td>
+            <td>2383.7 <span class="mean">[2498.0]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled GRU (base)</td>
+            <td>58.7<span class="pm"> ±1.1</span></td>
+            <td>24.2<span class="pm"> ±0.8</span></td>
+            <td>34.8<span class="pm"> ±1.1</span></td>
+            <td>32.2<span class="pm"> ±0.8</span></td>
+            <td>35.2<span class="pm"> ±1.1</span></td>
+            <td>774.2 <span class="mean">[1121.0]</span></td>
+            <td>2482.6 <span class="mean">[2619.2]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled GRU (+ protect)</td>
+            <td>56.0<span class="pm"> ±1.0</span></td>
+            <td>15.4<span class="pm"> ±0.9</span></td>
+            <td>35.3<span class="pm"> ±1.4</span></td>
+            <td>34.3<span class="pm"> ±1.9</span></td>
+            <td>37.0<span class="pm"> ±1.3</span></td>
+            <td>0.0 <span class="mean">[646.8]</span></td>
+            <td>2256.1 <span class="mean">[2502.4]</span></td>
+          </tr>
+          <tr>
+            <td>Distilled GRU (+ protect, DAgger)</td>
+            <td>56.1<span class="pm"> ±1.3</span></td>
+            <td>17.9<span class="pm"> ±1.2</span></td>
+            <td>33.6<span class="pm"> ±1.4</span></td>
+            <td>32.2<span class="pm"> ±1.3</span></td>
+            <td>34.8<span class="pm"> ±1.5</span></td>
+            <td>227.2 <span class="mean">[835.9]</span></td>
+            <td>2369.2 <span class="mean">[2574.4]</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tnote">
+      ± is over five seeds. Nominal&ndash;Abort and Nominal&ndash;ProtFall restrict the hierarchy to a single
+      backup; all four VAPS rows share the same alarm rule and therefore the same motion success.
+      <b>One-shot</b> consults the abort predictor once, at the alarm, and commits to the backup it picks; <b>full hierarchy</b> additionally keeps the
+      abort predictor running during the abort and escalates to the protective fall when its prediction drops.
+      Bold marks the best value per column on the leading statistic; no head median is bolded because several
+      rows tie at zero.
+    </p>
+
+    <div class="two" style="margin-top:36px">
+      <div>
+        <ul class="blist">
+        <li>The abort protects the whole body and has the lowest fall rate in the table.</li>
+        <li>But an abort that fails arrives in whatever attitude it lost control in: median peak head force 834&nbsp;N against 540&nbsp;N unprotected, and the highest head contact of any switching row.</li>
+        <li>The protective fall keeps the head clear (2.0% head contact, median peak head force zero) but is committed to the ground, so it falls more often than the nominal it supervises.</li>
+      </ul>
+      </div>
+      <div>
+        <ul class="blist">
+        <li>Routing keeps both. One-shot: head contact stays at 2.2%, within 0.2 points of always protecting, while the fall rate drops 14.2 points to 26.2%.</li>
+        <li>Escalating a failing abort to the protective fall removes the rest &mdash; head contact <b>1.6%</b>, below the protective-fall ablation, with the mean peak head force among fallen episodes more than halved.</li>
+        <li>Fall rate and motion success are unchanged; supervision costs 2.5 points of motion success against the unsupervised nominal.</li>
+      </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hierarchy">
+  <div class="wrap wrap--wide">
+    <h2>VAPS versus monolithic policies</h2>
+    <div class="two two--wide-r">
+      <div>
+        <h3>Can a single network replace the structure?</h3>
+        <ul class="blist">
+        <li><b>Single-network RL</b> &mdash; the protective specialist's damage terms folded into the task reward with weight &lambda;, tracking terminations removed, warm-started from the nominal, &lambda; swept at five seeds each.</li>
+        <li><b>Distilled students</b> &mdash; copied from a teacher at least as good as VAPS: at every alarmed state, counterfactual rollouts pick the behavior that succeeds.</li>
+        <li>Two arms tilt the student toward protection (<i>+&nbsp;protect</i>, <i>+&nbsp;DAgger</i>); two more add memory (a five-frame stack, a GRU) to rule out missing information rather than missing structure.</li>
+      </ul>
+        <p class="subhead" style="margin-top:26px">What the frontier shows</p>
+      <ul class="blist">
+        <li>VAPS runs along the bottom edge: from about 55% success at 2% head contact to 62% at 4.6%.</li>
+        <li>The end-to-end policies never leave the nominal's corner &mdash; at most four points of head contact, before the weight breaks training and success scatters.</li>
+        <li>The students descend, then plateau near 10%. Architecture does not move that plateau; the training data does.</li>
+        <li>The DAgger shard takes the memoryless student from 17.9% to 10.1% and leaves the recurrent one where it was &mdash; its segments begin at the alarm, with no history for a hidden state to carry.</li>
+        <li>They learned how to protect the head, not when protecting is right: episodes ending upright without completing the maneuver run to fourteen points for VAPS and low single digits for the students.</li>
+      </ul>
+        
+      </div>
+      <figure class="fig-frame">
+        <img src="static/images/pareto.png"
+             alt="Head-contact rate against motion success, one marker per seed. VAPS traces a curve along the bottom of the plot as its switching threshold is swept; end-to-end arms cluster near the nominal policy; distilled students, with and without memory, descend to about 10 percent head contact and plateau.">
+        <figcaption>
+          Head-contact rate against motion success on the population of Table III, one marker per seed; down and
+          right is better. At &tau;&nbsp;=&nbsp;0.99, VAPS matches the nominal's success at <b>4.6% head
+          contact</b>, against 24.0% for the best end-to-end arm and 10.1% for the best student; every lower
+          &tau; trades success for still less head contact, down to 1.6% for the full hierarchy. Up to seed spread
+          on the success axis, the non-dominated set consists of VAPS points only.
+        </figcaption>
+      </figure>
+    </div>
+    <div class="callout">
+      Folding the specialists into one network preserves the skills but loses the decision of how much of the
+      task to give up &mdash; exactly the part the explicit structure keeps inspectable.
+    </div>
+  </div>
+</section>
+
+<section id="hardware" class="tint">
+  <div class="wrap wrap--wide">
+    <h2>On hardware</h2>
+    <ul class="blist">
+        <li>Side-flip trials on the physical LimX Oli &mdash; a different robot from the one the pipeline was developed on.</li>
+        <li>The predictors, both backup policies and the selector run on the robot's own CPU.</li>
+        <li>At the handoff step the three networks take on average 0.29&nbsp;ms (p99 0.31&nbsp;ms) on one core &mdash; 1.45% of the control period.</li>
+      </ul>
+
+    <div class="two two--wide-r" style="margin-top:32px">
+      <div>
+        <h3>The predictor transfers</h3>
+        <ul class="blist">
+        <li>Thirteen trials: eight successful executions and five failures.</li>
+        <li>Every trial classified correctly, no false alarm, mean lead <b>0.544&nbsp;s</b> &mdash; each failure flagged before the corresponding simulated termination.</li>
+        <li>Thirteen trials bound the false-alarm rate only loosely, but they establish that the quantity the selector depends on survives the transfer.</li>
+      </ul>
+        <div class="tscroll" style="max-width:520px">
+          <table>
+            <thead><tr><th>Trials</th><th>Class. acc.</th><th>FAR</th><th>Lead time</th></tr></thead>
+            <tbody>
+              <tr><td>Success (n = 8)</td><td>100.0%</td><td>0.0%</td><td>&mdash;</td></tr>
+              <tr><td>Failure (n = 5)</td><td>100.0%</td><td>&mdash;</td><td>0.544 s</td></tr>
+              <tr class="ours"><td>Overall (n = 13)</td><td><b>100.0%</b></td><td><b>0.0%</b></td><td><b>0.544 s</b></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tnote">Deployed nominal predictor (&lambda; = 0.9, <i>H</i> = 50). Failure lead times range 0.12&ndash;0.80 s.</p>
+      </div>
+      <figure class="fig-frame">
+        <img src="static/images/leadtime.png"
+             alt="Predicted failure probability over time for two real-robot side flips; in both the probability rises sharply shortly after take-off, well before the fall.">
+        <figcaption>
+          Predictor output for two representative real-robot side flips. The dashed line marks take-off; on
+          each failure the hazard crosses the threshold about half a second before the corresponding termination.
+        </figcaption>
+      </figure>
+    </div>
+
+
+    <p class="subhead" style="margin-top:44px">The two trials behind that figure</p>
+    <div class="vgrid vgrid--2">
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; hardware</span>
+        <video src="static/videos/oli_pred_1.mp4" poster="static/images/poster_oli_pred_1.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>Trial (a)</div>
+        <p class="desc">Each clip carries its own recorded hazard trace and a take-off marker, so footage and curve are
+        provably the same trial. The hazard climbs while the robot is still in the air.</p>
+      </figure>
+      <figure class="vcard">
+        <span class="rb">LimX Oli &middot; hardware</span>
+        <video src="static/videos/oli_pred_2.mp4" poster="static/images/poster_oli_pred_2.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>Trial (b)</div>
+        <p class="desc">The second plotted rollout. No backup is engaged in either clip &mdash; these are the
+        predictor's calls on the unsupervised nominal policy.</p>
+      </figure>
+    </div>
+
+    <h3 style="margin-top:56px">The backups transfer</h3>
+    <ul class="blist">
+        <li>With a well-trained nominal policy, the states at which a switch actually occurs fall overwhelmingly where a controlled landing is still viable.</li>
+        <li>Triggering the switch manually mid-motion, the abort returned the robot to a stance in <b>17 of 19 trials</b>.</li>
+        <li>The protective fall, handed the same maneuver, kept head and hands clear in <b>12 of 16 trials</b>.</li>
+      </ul>
+    <figure style="margin-top:22px">
+      <img src="static/images/banner.jpg"
+           alt="Three time-aligned filmstrips of the LimX Oli side flip: under the nominal policy the robot completes the flip; after the switch marker, the abort policy brings the robot back to its feet, and the protective-fall policy lays it down on its side with the head clear of the floor.">
+      <figcaption>
+        The same side flip on the LimX Oli with three possible endings, frame by frame. Under the nominal policy
+        the robot completes the flip; when the maneuver is handed mid-flight to the abort policy it lands on its
+        feet, and when it is handed to the protective-fall policy it performs a controlled fall protecting head
+        and hands. Time stamps are relative to the switch.
+      </figcaption>
+    </figure>
+
+    <h3 style="margin-top:56px">The whole hierarchy, closed loop on the robot</h3>
+    <ul class="blist">
+        <li>In the trials above the handover is commanded by an operator. Here the stack runs on the robot and every switch is the selector's own.</li>
+        <li>&tau;<sub>nom</sub> was raised to 0.3 for this evaluation, to induce more frequent handoffs to the backups than the deployed operating point would.</li>
+        <li>Across 18 trials the controller produced four routing patterns, and the selected specialist met its objective in <b>15 of 18</b> &mdash; 83.3%, including trials with externally introduced disturbances.</li>
+      </ul>
+
+    <div class="two two--wide-r" style="margin-top:26px">
+      <div>
+        <p class="tcap"><span class="tn">Table IV</span>Closed-loop routing on hardware, 18 trials</p>
+        <div class="tscroll">
+          <table>
+            <thead>
+              <tr><th>Routing pattern</th><th>Trials</th><th>Objective met</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><span class="dot dot--nominal"></span>&nbsp; Nominal only</td>
+                <td>2</td><td>2</td>
+              </tr>
+              <tr>
+                <td><span class="dot dot--nominal"></span><span class="dot dot--abort"></span>&nbsp; Nominal &rarr; abort</td>
+                <td>10</td><td>9</td>
+              </tr>
+              <tr>
+                <td><span class="dot dot--nominal"></span><span class="dot dot--abort"></span><span class="dot dot--protect"></span>&nbsp; Nominal &rarr; abort &rarr; protective fall</td>
+                <td>4</td><td>3</td>
+              </tr>
+              <tr>
+                <td><span class="dot dot--nominal"></span><span class="dot dot--protect"></span>&nbsp; Nominal &rarr; protective fall</td>
+                <td>2</td><td>1</td>
+              </tr>
+              <tr class="ours">
+                <td>Overall</td>
+                <td><b>18</b></td><td><b>15</b> <span class="mean">(83.3%)</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tnote">
+          <i>Objective met</i> is judged against whichever specialist ended up in control: the maneuver completed,
+          the robot returned to a stance, or the fall taken with head and hands clear.
+        </p>
+      </div>
+      <div>
+        <div class="vgrid vgrid--2">
+          <figure class="vcard">
+            <span class="rb">LimX Oli &middot; hardware &middot; closed loop</span>
+            <video src="static/videos/oli_closedloop_abort.mp4" poster="static/images/poster_oli_closedloop_abort.jpg"
+                   autoplay loop muted playsinline preload="metadata"></video>
+            <div class="label"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span>&nbsp;Nominal &rarr; abort</div>
+            <p class="desc">A push during the flip. The nominal hazard crosses its threshold, the selector hands the
+            maneuver to the abort at 5.99&nbsp;s, and the robot stays on its feet. Both bars are live on the robot.</p>
+          </figure>
+          <figure class="vcard">
+            <span class="rb">LimX Oli &middot; hardware &middot; closed loop</span>
+            <video src="static/videos/oli_closedloop_cascade.mp4" poster="static/images/poster_oli_closedloop_cascade.jpg"
+                   autoplay loop muted playsinline preload="metadata"></video>
+            <div class="label"><span class="dot dot--nominal"></span><span class="dot dot--abort"></span><span class="dot dot--protect"></span>&nbsp;Both handoffs</div>
+            <p class="desc">The whole ladder in one trial: abort at 6.00&nbsp;s, protective fall at 6.42&nbsp;s. Its
+            escalation threshold was <b>lowered further</b> to exercise the second handoff, so it shows the mechanism,
+            not the operating point of the table.</p>
+          </figure>
+        </div>
+        <p class="tnote" style="margin-top:14px">
+          Both clips carry their own speed badge and are shown unaltered at that speed.
+        </p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:56px">What an unsupervised failure costs</h3>
+    <div class="vgrid vgrid--2">
+      <figure class="vcard">
+        <video src="static/videos/real_fail_1.mp4" poster="static/images/poster_real_fail_1.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>Nominal policy, disturbed</div>
+        <p class="desc">Without supervision the robot goes down unshaped. The predictor flags this trial before the fall becomes unavoidable.</p>
+      </figure>
+      <figure class="vcard">
+        <video src="static/videos/real_fail_2.mp4" poster="static/images/poster_real_fail_2.jpg"
+               autoplay loop muted playsinline preload="metadata"></video>
+        <div class="label"><span class="dot dot--nominal"></span>Nominal policy, disturbed</div>
+        <p class="desc">A second failure from a different disturbance. Both clips motivate the pipeline rather than demonstrate it; no alarm is raised on any of the eight successful trials.</p>
+      </figure>
+    </div>
+    <p class="tnote" style="margin-top:16px">
+      People in the raw laboratory footage are obscured throughout: the two failure clips are composited with the
+      robot sharp over a blurred background, the predictor trials carry a face pass, and the closed-loop trial keeps
+      a feathered patch at the edge of frame.
+    </p>
+  </div>
+</section>
+
+<section id="untrusted">
+  <div class="wrap wrap--wide">
+    <h2>Supervising new policies</h2>
+    <div class="two two--wide-r">
+      <div>
+        <ul class="blist">
+        <li>VAPS is trained on a large dataset of randomized, perturbed simulation, so the same pipeline generalizes across policies &mdash; a protective framework for a new policy, or a new robot.</li>
+        <li>The test: the nominal policy retrained from scratch, a checkpoint every 2,000 iterations, VAPS deployed on all 16 from untrained to converged.</li>
+        <li>The abort and protective-fall policies are reused; only the nominal predictor is retrained.</li>
+      </ul>
+        <ul class="blist">
+        <li>Head contact under VAPS stays flat near the floor, while the unprotected policy ranges from 30 to 99%.</li>
+        <li>The two completion curves lie almost on top of each other &mdash; protection at every stage of training, for very little task success.</li>
+      </ul>
+      </div>
+      <figure class="fig-frame">
+        <img src="static/images/untrusted.png"
+             alt="Two panels over nominal-policy training iteration: completion rate of the deployed policy alone and under VAPS track each other closely; head contact of the deployed policy alone starts near 100% and settles around 30%, while under VAPS it stays below 5% throughout.">
+        <figcaption>
+          VAPS around 16 checkpoints of an independently trained nominal policy. Completion (top) is within a few
+          points of the unsupervised policy throughout; head contact (bottom) stays flat regardless of how well
+          the policy has learned the maneuver.
+        </figcaption>
+      </figure>
+    </div>
+    <div class="callout">
+      Whether a state is safe cannot be decided from the state alone. It depends on what the robot does next and
+      on how much time remains to do it. Between continuing the maneuver and falling, VAPS places a third option
+      that prior work usually omits: aborting the maneuver while staying upright.
+    </div>
+  </div>
+</section>
+
+<section id="bibtex">
+  <div class="wrap">
+    <h2>BibTeX</h2>
+    <pre class="bib">@article{anonymous2026vaps,
+  title   = {Continue, Abort, or Fall: Viability-Aware Policy Selection (VAPS)
+             for Safe Humanoid Acrobatics},
+  author  = {Anonymous Authors},
+  journal = {Under review},
+  year    = {2026}
+}</pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      This page accompanies an anonymous submission under double-blind review. It contains no author,
+      institution, or affiliation information, loads no third-party resources, and sets no cookies.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>
