@@ -22,7 +22,7 @@ python3 -m http.server 8000
 
 ## Publishing
 
-The remote is already set to `https://github.com/VAPS-R-AL/VAPS-R-AL.git`, and
+The remote is set to `https://github.com/VAPS-R-AL/VAPS-R-AL.github.io.git`, and
 commits in this repository are authored `Anonymous <anonymous@example.com>`
 (set as a repo-local `user.name` / `user.email`, so a global identity cannot
 leak into them). Verify before every push:
@@ -41,13 +41,19 @@ and enable Pages: **Settings → Pages → Source: Deploy from a branch → `mai
 `(root)`**. The site appears at
 
 ```
-https://vaps-r-al.github.io/VAPS-R-AL/
+https://vaps-r-al.github.io/
 ```
 
-within a minute or two. Renaming the repository to `VAPS-R-AL.github.io`
-instead serves it at the bare `https://vaps-r-al.github.io/` — shorter, and
-worth doing before the URL goes into the paper. Every path in `index.html` is
-relative, so either address works unchanged.
+within a minute or two. The bare address is what the repository name buys: a
+user site must live in a repository named `<owner>.github.io`, and the owner
+here is `VAPS-R-AL`, so `VAPS-R-AL.github.io` is the only name that works. Any
+other name — `VAPS.github.io` included — makes this a *project* site served at
+`https://vaps-r-al.github.io/<repo-name>/`. Every path in `index.html` is
+relative, so the page itself is indifferent to which one you end up with.
+
+After a rename, Pages needs to redeploy before the new address answers; if the
+bare URL still 404s after a few minutes, re-select `main` / `(root)` in
+Settings → Pages and Save, or push any commit, to trigger a build.
 
 `.nojekyll` is present so GitHub serves `static/` verbatim rather than running
 Jekyll over it.
