@@ -117,8 +117,9 @@
     </p>
     <p>
       In simulation with randomized disturbances, VAPS sharply reduces head contact and hand contact, which are
-      the dominant sources of hardware damage; on the LimX Oli, we validate the viability predictors and the
-      full VAPS controller for side-flip motions, with the whole stack running on the robot's own CPU. VAPS
+      the dominant sources of hardware damage, with both a Unitree G1 and a LimX Oli; on the LimX Oli, we
+      validate the viability predictors and the full VAPS controller for side-flip motions, with the whole
+      stack running on one core of the robot's own CPU. VAPS
       Pareto-dominates the strongest single-network alternatives we could train, including an end-to-end
       safe-tracking policy and students distilled from VAPS's own oracle-routed decisions, on the
       task-success/head-impact frontier. We also show that VAPS is a powerful framework to supervise
@@ -144,8 +145,8 @@
         <span class="k">2</span>
         <div>
           <h4>Policy-conditioned, receding-horizon viability</h4>
-          <p>We learn one viability predictor per backup from counterfactual rollouts and evaluate it
-          continuously from proprioceptive history.</p>
+          <p>We learn one viability predictor for the nominal policy and the abort policy from counterfactual
+          rollouts and evaluate it continuously from proprioceptive history.</p>
         </div>
       </div>
       <div class="item">
@@ -153,16 +154,15 @@
         <div>
           <h4>Analysis of single-policy alternatives</h4>
           <p>We investigate monolithic alternatives, including end-to-end RL policies and students distilled
-          from VAPS with DAgger &mdash; with and without memory &mdash; and show that VAPS dominates all of
-          them.</p>
+          from VAPS with DAgger, and show that VAPS dominates all of them.</p>
         </div>
       </div>
       <div class="item">
         <span class="k">4</span>
         <div>
           <h4>Hardware validation</h4>
-          <p>We deploy and validate VAPS on the LimX Oli humanoid, demonstrating successful cross-robot and
-          sim-to-real transfer.</p>
+          <p>We develop and test VAPS in simulation on a Unitree G1 and a LimX Oli, and deploy and validate
+          the sim-to-real transfer on the LimX Oli.</p>
         </div>
       </div>
     </div>
