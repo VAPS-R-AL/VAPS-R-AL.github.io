@@ -87,6 +87,15 @@ which must never be published. `scripts/build_assets.py` rebuilds all of them;
 its paths point at the research repository, so run it from a checkout that sits
 beside `raps_video/`.
 
+As of 2026-09-21 the page is the short version: the Method section, the Table I
+and Table II blocks, the closed-loop bullet columns, the `oli_sim_specialists`
+clip and the whole On-hardware section were cut. `oli_pred_1`, `oli_pred_2`,
+`oli_closedloop_abort`, `oli_closedloop_cascade`, `oli_sim_specialists`,
+`real_fail_1` and `real_fail_2` are still built and still in `static/videos/`,
+but nothing on the page links to them — put the section back rather than
+rebuilding them if it returns. Results now carries Table III alone, keeping the
+paper's numbering rather than renumbering to Table I.
+
 Three rules the page keeps:
 
 - **Nothing is retimed.** The annotated exports and both closed-loop trials
