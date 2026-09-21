@@ -97,6 +97,15 @@ Three rules the page keeps:
   approved face pass; the closed-loop trial keeps the film's feathered edge
   patch. `53/58-safe-fall` and `20260902-154410` carry unblurred bystanders and
   are **not** published.
+- **Background pass (2026-09-20).** `real robot video/blurred_videos/*_bg_blur.mp4`
+  blurs the whole lab — the robots lying in the background included — and keeps
+  the robot and the burned-in read-outs sharp. `oli_pred_1` / `oli_pred_2` now
+  come from it (on top of the face pass) and so does `oli_closedloop_cascade`.
+  `real_abort` (74), `real_protfall` (sf71) and `oli_closedloop_abort` (49) have
+  no background-blurred source yet and are unchanged; rebuild them with
+  `scripts/build_assets.py real_abort real_protfall oli_closedloop_abort` once
+  one exists. The script takes such a list to rebuild a subset instead of all
+  nineteen clips.
 - **Captions claim only what the paper reports.** The closed-loop routing table
   is §IV-C's 18-trial evaluation at τ_nom = 0.3, and the cascade clip's caption
   states that its escalation threshold was lowered further to exercise the
@@ -119,10 +128,10 @@ in `index.html` appears in the paper, with one exception: the predictor's
 ("shortened") dropped it for page space. It is the measured range over the same
 thirteen trials, and the page has room for it.
 
-The supplementary film is `static/videos/vaps_supplementary.mp4` — the v9 cut
-(`raps_video/raps_animatic_v9.mp4`, 1280×720, 194.4 s, 15 beats, silent),
+The supplementary film is `static/videos/vaps_supplementary.mp4` — the v10 cut
+(`raps_video/raps_animatic_v10.mp4`, 1280×720, 189.6 s, 16 beats, silent),
 remuxed with `-c copy -movflags +faststart` so it streams progressively
-instead of buffering all 12.7 MB first. It is NOT re-encoded; replace it the
+instead of buffering all 9.4 MB first. It is NOT re-encoded; replace it the
 same way when a newer cut lands, and re-grab the poster:
 
 ```bash
@@ -133,6 +142,7 @@ ffmpeg -ss 3.5 -i static/videos/vaps_supplementary.mp4 -frames:v 1 -q:v 3 \
 ```
 
 The cut carries a silent AAC track, so the player shows a volume control that
-does nothing; the caption says the film is silent. Note that `raps_video/`
-also holds a v10 (180.2 s, beat 10 rebuilt as one shot) — v9 is on the site by
-choice, so check which you mean before swapping.
+does nothing; the caption says the film is silent. v10 (2026-09-20) replaced v9:
+its hardware shots run through the background-blur pass described below, and its
+framework beat was re-registered on the paper's retrimmed Fig. 2. The hero
+button states the running time, so update it with the film.

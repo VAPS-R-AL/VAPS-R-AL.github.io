@@ -18,7 +18,7 @@ from the sharp region by YOLO person masks. The earlier in-script `privacy()`
 pass is kept below for reference but is NOT used: it blurs a whole frame and
 tracks the robot with a plain moving window, which reads far worse.
 """
-import os, subprocess
+import os, subprocess, sys
 
 # The research repository that holds the source footage (raps_video/ ...).
 # Derived from this checkout's location so the path carries no user name;
@@ -29,6 +29,12 @@ ROOT = os.environ.get("VAPS_ROOT") or os.path.dirname(SITE)
 OUT  = os.path.join(SITE, "static/videos")
 IMG  = os.path.join(SITE, "static/images")
 FPS  = 30
+
+# build everything, or only the named outputs: build_assets.py oli_pred_1 oli_pred_2
+SEL = set(a.replace(".mp4", "").replace("poster_", "") for a in sys.argv[1:])
+
+def want(name):
+    return not SEL or name in SEL
 
 def run(cmd):
     subprocess.run(cmd, check=True)
@@ -64,6 +70,7 @@ ENC = ["-c:v", "libx264", "-preset", "slow", "-crf", "26", "-pix_fmt", "yuv420p"
        "-an", "-movflags", "+faststart"]
 
 def encode(src, dst, vf, ss=None, t=None):
+    if not want(dst.replace(".mp4", "")): return
     cmd = ["ffmpeg", "-y", "-v", "error"]
     if ss is not None: cmd += ["-ss", str(ss)]
     cmd += ["-i", src]
@@ -72,6 +79,7 @@ def encode(src, dst, vf, ss=None, t=None):
     print("  ", dst)
 
 def encode_priv(src, dst, key, ss, t):
+    if not want(dst.replace(".mp4", "")): return
     graph = privacy("[0:v]", "[pv_out]", **PRIV[key]) + ";[pv_out]scale=960:496:force_original_aspect_ratio=increase,crop=960:496,setsar=1[v]"
     run(["ffmpeg", "-y", "-v", "error", "-ss", str(ss), "-i", src, "-t", str(t),
          "-filter_complex", graph, "-map", "[v]"] + ENC + [os.path.join(OUT, dst)])
@@ -132,8 +140,11 @@ for src, dst in [("real_robot", "cf_real"), ("nominal", "cf_nominal"),
 
 print("hardware predictor trials:")
 # already face-passed by blur_bystanders.py and approved from blur_review_beat9.mp4
-encode(os.path.join(REAL, "blurred/pred_a_faceblur.mp4"), "oli_pred_1.mp4", "setsar=1")
-encode(os.path.join(REAL, "blurred/pred_b_faceblur.mp4"), "oli_pred_2.mp4", "setsar=1")
+# 2026-09-20: the approved face pass AND the background pass (blurred_videos/),
+# which blurs the room -- the robots lying in the background included -- and keeps
+# the robot and the burned-in P(fail) read-out sharp.
+encode(os.path.join(REAL, "blurred_videos/pred_a_faceblur_bg_blur.mp4"), "oli_pred_1.mp4", "setsar=1")
+encode(os.path.join(REAL, "blurred_videos/pred_b_faceblur_bg_blur.mp4"), "oli_pred_2.mp4", "setsar=1")
 
 print("hardware closed loop:")
 # 49: the film's own feathered patch, RAPS_PRIV["r1"] = (0, 30, 168, 300, "rtb")
@@ -141,13 +152,15 @@ _p = ("[0:v]split=2[c0][c1];[c1]crop=168:300:0:30,gblur=sigma=24:steps=3,format=
       "geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':"
       "a='min(min(255*clip((W-X)/44\,0\,1)\,255*clip(Y/44\,0\,1))\,255*clip((H-Y)/44\,0\,1))'[p];"
       "[c0][p]overlay=0:30,setsar=1[v]")
-run(["ffmpeg", "-y", "-v", "error", "-ss", "4.0", "-i", os.path.join(REAL, "49_RAPS.mp4"),
-     "-t", "11.0", "-filter_complex", _p, "-map", "[v]"] + ENC
-    + [os.path.join(OUT, "oli_closedloop_abort.mp4")])
-print("   oli_closedloop_abort.mp4")
+if want("oli_closedloop_abort"):
+  run(["ffmpeg", "-y", "-v", "error", "-ss", "4.0", "-i", os.path.join(REAL, "49_RAPS.mp4"),
+       "-t", "11.0", "-filter_complex", _p, "-map", "[v]"] + ENC
+      + [os.path.join(OUT, "oli_closedloop_abort.mp4")])
+  print("   oli_closedloop_abort.mp4")
 # 62: the full cascade. No bystanders (MISSING_ASSETS R7), so no patch; it carries a
 # burned-in x1 / x0.25 speed badge, so it must NOT be retimed.
-encode(os.path.join(REAL, "62_3l_raps.mp4"), "oli_closedloop_cascade.mp4",
+# 2026-09-20: background-blurred copy; the speed badge and the read-outs survive it.
+encode(os.path.join(REAL, "blurred_videos/62_3l_raps_bg_blur.mp4"), "oli_closedloop_cascade.mp4",
        "setsar=1", ss=5.5, t=11.5)
 
 print("posters:")
@@ -158,6 +171,7 @@ for name, t in [("sim_nominal", 1.0), ("sim_abort", 2.0), ("sim_protective", 2.2
                 ("cf_real", 5.6), ("cf_nominal", 5.6), ("cf_abort", 5.6), ("cf_protfall", 5.6),
                 ("oli_pred_1", 3.0), ("oli_pred_2", 3.0),
                 ("oli_closedloop_abort", 6.5), ("oli_closedloop_cascade", 7.0)]:
+    if not want(name): continue
     run(["ffmpeg", "-y", "-v", "error", "-ss", str(t),
          "-i", os.path.join(OUT, name + ".mp4"), "-frames:v", "1",
          "-q:v", "4", os.path.join(IMG, "poster_" + name + ".jpg")])
