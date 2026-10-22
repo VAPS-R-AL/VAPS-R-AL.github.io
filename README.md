@@ -9,7 +9,6 @@ index.html                  the whole page
 static/css/style.css        the whole stylesheet
 static/images/              figures (exported from the paper) and video posters
 static/videos/              simulation and hardware clips
-static/paper/vaps_paper.pdf the compiled submission
 scripts/build_assets.py     rebuilds every clip and poster from the video repo
 ```
 
@@ -63,8 +62,7 @@ Jekyll over it.
 The page is written to survive a reviewer looking for the authors:
 
 - no author names, affiliations, funding, acknowledgements or contact details;
-- `static/paper/vaps_paper.pdf` is the anonymous build — its PDF metadata
-  (`/Author`, `/Title`, `/Subject`, `/Keywords`) is empty;
+- the page does not host the paper and does not link to it;
 - no external fonts, scripts, stylesheets or images, so no third-party host
   sees a reviewer's request;
 - no links to code hosting, experiment trackers or personal pages.
@@ -128,8 +126,8 @@ Figures are exported from the paper's own sources: `pareto.png` from
 from `pictures/final_figure2.pdf` (`pdftoppm -r 220`, white margins trimmed),
 `leadtime.png` from `pictures/fall_predictor_two_leadtime_ieee.png` (alpha
 flattened), and `banner.jpg` from `pictures/fig0_banner.png` at 1800 px.
-Re-export them when the paper's figures change, and re-copy `main.pdf` into
-`static/paper/vaps_paper.pdf`.
+Re-export them when the paper's figures change. Do not put the paper PDF on
+the site, and do not link to the paper.
 
 Numbers on the page are checked against `chapters/*.tex` — every numeric token
 in `index.html` appears in the paper, with one exception: the predictor's
